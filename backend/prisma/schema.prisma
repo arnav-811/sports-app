@@ -1,0 +1,791 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./sportverse.db"
+}
+
+model User {
+  id                    String              @id @default(cuid())
+  email                 String              @unique
+  username              String              @unique
+  passwordHash          String
+  displayName           String?
+  avatarUrl             String?
+  bio                   String?
+  level                 Int                 @default(1)
+  cred                  Int                 @default(0)
+  xp                    Int                 @default(0)
+  isPremium             Boolean             @default(false)
+  emailVerified         Boolean             @default(false)
+  favoriteSports        String              @default("[]")
+  favoriteClubs         String              @default("[]")
+  country               String?
+  city                  String?
+  svScore               Float               @default(0)
+  svScoreBreakdown      String?
+  svScoreUpdatedAt      DateTime?
+  predictionCount       Int                 @default(0)
+  correctPredictions    Int                 @default(0)
+  dailyStreak           Int                 @default(0)
+  lastActiveDate        DateTime?
+  activeSports          String              @default("[]")
+  // Economy fields
+  sportcoins            Int                 @default(1000)
+  totalCoinsEarned      Int                 @default(0)
+  totalCoinsSpent       Int                 @default(0)
+  totalCoinsLost        Int                 @default(0)
+  lastLoginDate         DateTime?
+  longestStreak         Int                 @default(0)
+  lastClaimDate         DateTime?
+  sessionPredictions    Int                 @default(0)
+  sessionCorrect        Int                 @default(0)
+  predictionMultiplier  Float               @default(1.0)
+  multiplierStreak      Int                 @default(0)
+  weeklyNetCoins        Int                 @default(0)
+  lastWeeklyReset       DateTime?
+  // Debate fields
+  debateWins            Int                 @default(0)
+  debateLosses          Int                 @default(0)
+  debateWinRate         Float               @default(0)
+  debateArgQuality      Float               @default(0)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  // Relations
+  takes                 Take[]
+  terraceReplies        TerraceReply[]
+  signals               Signal[]
+  draftRosters          DraftRoster[]
+  groundMembers         GroundMember[]
+  receipts              Receipt[]
+  notifications         Notification[]
+  refreshTokens         RefreshToken[]
+  badges                UserBadge[]
+  svScoreHistory        SVScoreHistory[]
+  debateEntries         DebateEntry[]
+  rivalriesAsChallenger Rivalry[]           @relation("RivalryChallenger")
+  rivalriesAsChallenged Rivalry[]           @relation("RivalryChallenged")
+  coinTransactions      CoinTransaction[]
+  livePredictions       LivePrediction[]
+  parlays               Parlay[]
+  matchMemories         MatchMemory[]
+  timeCapsules          TimeCapsule[]
+  passport              SportPassport?
+  dailyQuests           DailyQuest[]
+  weeklyQuests          WeeklyQuest[]
+  monthlyQuests         MonthlyQuest[]
+  multiplierShields     MultiplierShield[]
+  userPurchases         UserPurchase[]
+  directorProfile       DirectorProfile?
+  intelligenceAlerts    IntelligenceAlert[]
+}
+
+model Sport {
+  id                 String              @id
+  name               String
+  color              String
+  icon               String
+  grounds            Ground[]
+  matches            Match[]
+  debates            Debate[]
+  sportStamps        SportStamp[]
+  positions          Position[]
+  availablePositions AvailablePosition[]
+}
+
+model Ground {
+  id          String         @id @default(cuid())
+  name        String         @unique
+  displayName String
+  description String
+  icon        String
+  bannerUrl   String?
+  sportId     String
+  sport       Sport          @relation(fields: [sportId], references: [id])
+  memberCount Int            @default(0)
+  takeCount   Int            @default(0)
+  createdAt   DateTime       @default(now())
+  takes       Take[]
+  members     GroundMember[]
+  flairs      Flair[]
+}
+
+model GroundMember {
+  id       String   @id @default(cuid())
+  userId   String
+  groundId String
+  flair    String?
+  role     String   @default("member")
+  joinedAt DateTime @default(now())
+  user     User     @relation(fields: [userId], references: [id])
+  ground   Ground   @relation(fields: [groundId], references: [id])
+
+  @@unique([userId, groundId])
+}
+
+model Take {
+  id             String         @id @default(cuid())
+  title          String
+  body           String?
+  type           String         @default("text")
+  authorId       String
+  groundId       String
+  sportId        String?
+  flair          String?
+  matchId        String?
+  imageUrl       String?
+  voteScore      Int            @default(0)
+  upvotes        Int            @default(0)
+  downvotes      Int            @default(0)
+  commentCount   Int            @default(0)
+  isPinned       Boolean        @default(false)
+  isLocked       Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  author         User           @relation(fields: [authorId], references: [id])
+  ground         Ground         @relation(fields: [groundId], references: [id])
+  terraceReplies TerraceReply[]
+  signals        Signal[]
+  receipts       Receipt[]
+  pollOptions    PollOption[]
+}
+
+model TerraceReply {
+  id        String         @id @default(cuid())
+  body      String
+  authorId  String
+  takeId    String
+  parentId  String?
+  voteScore Int            @default(0)
+  depth     Int            @default(0)
+  isDeleted Boolean        @default(false)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  author    User           @relation(fields: [authorId], references: [id])
+  take      Take           @relation(fields: [takeId], references: [id])
+  parent    TerraceReply?  @relation("ReplyReplies", fields: [parentId], references: [id])
+  replies   TerraceReply[] @relation("ReplyReplies")
+  signals   Signal[]
+  receipts  Receipt[]
+}
+
+model Signal {
+  id        String        @id @default(cuid())
+  userId    String
+  takeId    String?
+  replyId   String?
+  value     Int
+  createdAt DateTime      @default(now())
+  user      User          @relation(fields: [userId], references: [id])
+  take      Take?         @relation(fields: [takeId], references: [id])
+  reply     TerraceReply? @relation(fields: [replyId], references: [id])
+
+  @@unique([userId, takeId])
+  @@unique([userId, replyId])
+}
+
+model PollOption {
+  id     String @id @default(cuid())
+  takeId String
+  text   String
+  votes  Int    @default(0)
+  take   Take   @relation(fields: [takeId], references: [id])
+}
+
+model Receipt {
+  id        String        @id @default(cuid())
+  type      String
+  giverId   String
+  takeId    String?
+  replyId   String?
+  createdAt DateTime      @default(now())
+  giver     User          @relation(fields: [giverId], references: [id])
+  take      Take?         @relation(fields: [takeId], references: [id])
+  reply     TerraceReply? @relation(fields: [replyId], references: [id])
+}
+
+model Match {
+  id          String   @id @default(cuid())
+  sportId     String
+  externalId  String?
+  competition String
+  homeTeam    String
+  awayTeam    String
+  homeScore   String?
+  awayScore   String?
+  status      String
+  startTime   DateTime
+  venue       String?
+  statsJson   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  sport       Sport    @relation(fields: [sportId], references: [id])
+}
+
+model DraftLeague {
+  id        String        @id @default(cuid())
+  sportId   String
+  name      String
+  format    String
+  entryFee  Float         @default(0)
+  prizePool Float         @default(0)
+  maxTeams  Int           @default(100000)
+  deadline  DateTime
+  matchId   String?
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  rosters   DraftRoster[]
+}
+
+model DraftRoster {
+  id          String      @id @default(cuid())
+  userId      String
+  leagueId    String
+  name        String
+  playersJson String      @default("{}")
+  totalPoints Float       @default(0)
+  rank        Int?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  user        User        @relation(fields: [userId], references: [id])
+  league      DraftLeague @relation(fields: [leagueId], references: [id])
+
+  @@unique([userId, leagueId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Badge {
+  id          String      @id @default(cuid())
+  name        String
+  description String
+  icon        String
+  color       String
+  condition   String
+  userBadges  UserBadge[]
+}
+
+model UserBadge {
+  id       String   @id @default(cuid())
+  userId   String
+  badgeId  String
+  earnedAt DateTime @default(now())
+  user     User     @relation(fields: [userId], references: [id])
+  badge    Badge    @relation(fields: [badgeId], references: [id])
+
+  @@unique([userId, badgeId])
+}
+
+model Flair {
+  id       String @id @default(cuid())
+  groundId String
+  name     String
+  color    String
+  ground   Ground @relation(fields: [groundId], references: [id])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model SVScoreHistory {
+  id         String   @id @default(cuid())
+  userId     String
+  score      Float
+  breakdown  String
+  recordedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+model Debate {
+  id          String        @id @default(cuid())
+  question    String
+  sideA       String
+  sideB       String
+  matchId     String?
+  sportId     String
+  trigger     String
+  status      String        @default("open")
+  openAt      DateTime      @default(now())
+  closedAt    DateTime?
+  winningSide String?
+  totalVoters Int           @default(0)
+  createdAt   DateTime      @default(now())
+  entries     DebateEntry[]
+  sport       Sport         @relation(fields: [sportId], references: [id])
+}
+
+model DebateEntry {
+  id            String   @id @default(cuid())
+  debateId      String
+  userId        String
+  side          String
+  argument      String
+  votes         Int      @default(0)
+  isTopArgument Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  debate        Debate   @relation(fields: [debateId], references: [id])
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@unique([debateId, userId])
+}
+
+model Rivalry {
+  id           String        @id @default(cuid())
+  challengerId String
+  challengedId String
+  status       String        @default("pending")
+  potCoins     Int           @default(100)
+  isHighStakes Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  acceptedAt   DateTime?
+  stats        RivalryStats?
+  challenger   User          @relation("RivalryChallenger", fields: [challengerId], references: [id])
+  challenged   User          @relation("RivalryChallenged", fields: [challengedId], references: [id])
+
+  @@unique([challengerId, challengedId])
+}
+
+model RivalryStats {
+  id                  String    @id @default(cuid())
+  rivalryId           String    @unique
+  challengerWins      Int       @default(0)
+  challengedWins      Int       @default(0)
+  draws               Int       @default(0)
+  totalBattles        Int       @default(0)
+  challengerSVHistory String    @default("[]")
+  challengedSVHistory String    @default("[]")
+  lastBattleAt        DateTime?
+  streakHolder        String?
+  streakLength        Int       @default(0)
+  rivalry             Rivalry   @relation(fields: [rivalryId], references: [id])
+}
+
+// Updated CoinTransaction with full economy tracking
+model CoinTransaction {
+  id            String   @id @default(cuid())
+  userId        String
+  amount        Int
+  type          String   @default("earn") // "earn" | "lose" | "spend"
+  reason        String
+  referenceId   String?
+  balanceBefore Int      @default(0)
+  balanceAfter  Int
+  description   String   @default("")
+  sportId       String?
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id])
+}
+
+// Updated LivePrediction with parlay support
+model LivePrediction {
+  id           String   @id @default(cuid())
+  userId       String
+  matchId      String
+  sportId      String
+  questionId   String?
+  question     String
+  optionChosen String
+  options      String   // JSON string
+  oddsAtTime   Float
+  coinsStaked  Int
+  coinsWon     Int?
+  coinsLost    Int?
+  status       String   @default("pending") // "pending"|"won"|"lost"|"void"
+  isParlay     Boolean  @default(false)
+  parlayId     String?
+  resolvedAt   DateTime?
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id])
+  parlay       Parlay?  @relation(fields: [parlayId], references: [id])
+}
+
+model Parlay {
+  id           String           @id @default(cuid())
+  userId       String
+  totalStake   Int
+  combinedOdds Float
+  potentialWin Int
+  status       String           @default("pending") // "pending"|"won"|"bust"
+  legsTotal    Int
+  legsWon      Int              @default(0)
+  legsFailed   Int              @default(0)
+  coinsWon     Int?
+  resolvedAt   DateTime?
+  createdAt    DateTime         @default(now())
+  legs         LivePrediction[]
+  user         User             @relation(fields: [userId], references: [id])
+}
+
+model OddsBoard {
+  id            String   @id @default(cuid())
+  matchId       String
+  sportId       String
+  question      String
+  options       String   // JSON: [{id, label, baseOdds, currentOdds, coinsStaked, percentage}]
+  totalCoins    Int      @default(0)
+  status        String   @default("open") // "open"|"closed"|"resolved"
+  winningOption String?
+  closedAt      DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model DailyQuest {
+  id          String    @id @default(cuid())
+  userId      String
+  questType   String
+  description String
+  requirement Int
+  progress    Int       @default(0)
+  coinReward  Int
+  xpReward    Int       @default(0)
+  status      String    @default("active") // "active"|"completed"|"expired"
+  expiresAt   DateTime
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id])
+}
+
+model WeeklyQuest {
+  id          String    @id @default(cuid())
+  userId      String
+  questType   String
+  description String
+  requirement Int
+  progress    Int       @default(0)
+  coinReward  Int
+  xpReward    Int       @default(0)
+  status      String    @default("active")
+  expiresAt   DateTime
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id])
+}
+
+model MonthlyQuest {
+  id          String    @id @default(cuid())
+  userId      String
+  questType   String
+  description String
+  requirement Int
+  progress    Int       @default(0)
+  coinReward  Int
+  xpReward    Int       @default(0)
+  status      String    @default("active")
+  expiresAt   DateTime
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id])
+}
+
+model MultiplierShield {
+  id        String    @id @default(cuid())
+  userId    String
+  isActive  Boolean   @default(true)
+  usedAt    DateTime?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id])
+}
+
+model CoinStoreItem {
+  id          String  @id @default(cuid())
+  name        String
+  description String
+  category    String  // "advantage"|"social"|"cosmetic"|"access"
+  cost        Int
+  icon        String
+  isLimited   Boolean @default(false)
+  stock       Int?
+  isActive    Boolean @default(true)
+  effectType  String
+  effectValue String  // JSON
+}
+
+model UserPurchase {
+  id          String    @id @default(cuid())
+  userId      String
+  itemId      String
+  coinsCost   Int
+  purchasedAt DateTime  @default(now())
+  expiresAt   DateTime?
+  isActive    Boolean   @default(true)
+  user        User      @relation(fields: [userId], references: [id])
+}
+
+model MatchMemory {
+  id                  String    @id @default(cuid())
+  userId              String
+  matchId             String
+  predictionAtKickoff String?
+  actualResult        String?
+  predictionCorrect   Boolean?
+  fantasyScore        Float?
+  takeId              String?
+  debateResult        String?
+  svScoreAtTime       Float?
+  notes               String?
+  createdAt           DateTime  @default(now())
+  user                User      @relation(fields: [userId], references: [id])
+}
+
+model TimeCapsule {
+  id         String    @id @default(cuid())
+  userId     String
+  matchId    String
+  content    String
+  revealAt   DateTime
+  isRevealed Boolean   @default(false)
+  revealedAt DateTime?
+  likes      Int       @default(0)
+  sportId    String
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id])
+}
+
+model SportPassport {
+  id        String       @id @default(cuid())
+  userId    String       @unique
+  updatedAt DateTime     @updatedAt
+  stamps    SportStamp[]
+  user      User         @relation(fields: [userId], references: [id])
+}
+
+model SportStamp {
+  id                String        @id @default(cuid())
+  passportId        String
+  sportId           String
+  level             Int           @default(0)
+  levelName         String        @default("Casual")
+  xp                Int           @default(0)
+  xpToNextLevel     Int           @default(100)
+  matchesFollowed   Int           @default(0)
+  takesPosted       Int           @default(0)
+  debatesEntered    Int           @default(0)
+  predictionsPlaced Int           @default(0)
+  draftWarsPlayed   Int           @default(0)
+  badgesEarned      String        @default("[]")
+  unlockedAt        DateTime      @default(now())
+  legacyAt          DateTime?
+  passport          SportPassport @relation(fields: [passportId], references: [id])
+  sport             Sport         @relation(fields: [sportId], references: [id])
+
+  @@unique([passportId, sportId])
+}
+
+// ─── Sporting Director ───────────────────────────────────────────────────────
+
+model DirectorProfile {
+  id                  String             @id @default(cuid())
+  userId              String             @unique
+  reputationScore     Float              @default(0)
+  reputationTier      String             @default("Rookie")
+  totalPositions      Int                @default(0)
+  correctPositions    Int                @default(0)
+  accuracyRate        Float              @default(0)
+  contrairianWins     Int                @default(0)
+  portfolioValue      Int                @default(0)
+  portfolioStartValue Int                @default(10000)
+  followersCount      Int                @default(0)
+  followingCount      Int                @default(0)
+  intelligenceNetwork String             @default("{\"football\":0,\"tennis\":0,\"cricket\":0,\"f1\":0,\"badminton\":0}")
+  timingScore         Float              @default(0)
+  longestStreak       Int                @default(0)
+  currentStreak       Int                @default(0)
+  biggestWin          Int                @default(0)
+  biggestLoss         Int                @default(0)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  user                User               @relation(fields: [userId], references: [id])
+  positions           Position[]
+  followers           DirectorFollow[]   @relation("DirectorFollowed")
+  following           DirectorFollow[]   @relation("DirectorFollowing")
+  mirroredPositions   MirroredPosition[]
+}
+
+model DirectorFollow {
+  id         String          @id @default(cuid())
+  followerId String
+  followedId String
+  createdAt  DateTime        @default(now())
+  follower   DirectorProfile @relation("DirectorFollowing", fields: [followerId], references: [id])
+  followed   DirectorProfile @relation("DirectorFollowed", fields: [followedId], references: [id])
+
+  @@unique([followerId, followedId])
+}
+
+model Position {
+  id               String            @id @default(cuid())
+  directorId       String
+  sportId          String
+  category         String
+  level            String
+  subjectType      String
+  subjectId        String
+  subjectName      String
+  claim            String
+  detail           String?
+  timeHorizon      String
+  expiresAt        DateTime
+  entryOdds        Float
+  currentOdds      Float
+  coinsStaked      Int
+  currentValue     Int
+  isCounter        Boolean           @default(false)
+  hasInsurance     Boolean           @default(false)
+  status           String            @default("open")
+  coinsReturned    Int?
+  profitLoss       Int?
+  wasContrarian    Boolean           @default(false)
+  communityHoldPct Float             @default(0)
+  resolvedAt       DateTime?
+  exitedAt         DateTime?
+  availPosId       String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  director         DirectorProfile   @relation(fields: [directorId], references: [id])
+  sport            Sport             @relation(fields: [sportId], references: [id])
+  mirrors          MirroredPosition[]
+  events           PositionEvent[]
+  insurance        PositionInsurance?
+}
+
+model PositionEvent {
+  id          String   @id @default(cuid())
+  positionId  String
+  eventType   String
+  description String
+  oddsImpact  Float    @default(0)
+  valueImpact Int      @default(0)
+  severity    String   @default("neutral")
+  createdAt   DateTime @default(now())
+  position    Position @relation(fields: [positionId], references: [id])
+}
+
+model PositionInsurance {
+  id            String    @id @default(cuid())
+  positionId    String    @unique
+  coinsCost     Int       @default(150)
+  isTriggered   Boolean   @default(false)
+  triggeredAt   DateTime?
+  reason        String?
+  coinsReturned Int?
+  createdAt     DateTime  @default(now())
+  position      Position  @relation(fields: [positionId], references: [id])
+}
+
+model MirroredPosition {
+  id            String          @id @default(cuid())
+  directorId    String
+  originalPosId String
+  coinsStaked   Int
+  entryOdds     Float
+  status        String          @default("open")
+  coinsReturned Int?
+  profitLoss    Int?
+  createdAt     DateTime        @default(now())
+  director      DirectorProfile @relation(fields: [directorId], references: [id])
+  originalPos   Position        @relation(fields: [originalPosId], references: [id])
+}
+
+model AvailablePosition {
+  id                   String    @id @default(cuid())
+  sportId              String
+  category             String
+  level                String
+  subjectType          String
+  subjectId            String
+  subjectName          String
+  claim                String
+  description          String
+  timeHorizon          String
+  openAt               DateTime  @default(now())
+  closesAt             DateTime
+  expiresAt            DateTime
+  baseOdds             Float
+  currentOdds          Float
+  minStake             Int       @default(50)
+  totalStaked          Int       @default(0)
+  holdersCount         Int       @default(0)
+  isEarlyIntel         Boolean   @default(false)
+  requiredIntelNetwork Float     @default(0)
+  realWorldContext     String    @default("")
+  riskFactors          String    @default("[]")
+  supportFactors       String    @default("[]")
+  isActive             Boolean   @default(true)
+  resolvedAt           DateTime?
+  outcome              String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  sport                Sport     @relation(fields: [sportId], references: [id])
+}
+
+model IntelligenceAlert {
+  id         String   @id @default(cuid())
+  userId     String
+  positionId String
+  alertType  String
+  message    String
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+model ContrarianFinder {
+  id               String   @id @default(cuid())
+  positionId       String
+  communityHoldPct Float    @default(0)
+  impliedProb      Float    @default(0)
+  edge             Float    @default(0)
+  reasoning        String
+  generatedAt      DateTime @default(now())
+}
+
+model DirectorLeaderboard {
+  id              String   @id @default(cuid())
+  period          String
+  directorId      String
+  rank            Int
+  accuracyRate    Float    @default(0)
+  portfolioReturn Float    @default(0)
+  contrairianWins Int      @default(0)
+  coinsEarned     Int      @default(0)
+  recordedAt      DateTime @default(now())
+}
+
+model ScoutReport {
+  id              String   @id @default(cuid())
+  positionId      String
+  sportId         String
+  subjectName     String
+  recentForm      String   @default("[]")
+  injuryHistory   String   @default("[]")
+  headToHead      String   @default("{}")
+  pressureStats   String   @default("{}")
+  venueStats      String   @default("{}")
+  formTrend       String   @default("stable")
+  confidenceScore Float    @default(50)
+  riskLevel       String   @default("medium")
+  keyRisks        String   @default("[]")
+  keySupport      String   @default("[]")
+  recommendation  String   @default("consider")
+  generatedAt     DateTime @default(now())
+}

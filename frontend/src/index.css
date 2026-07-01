@@ -1,0 +1,183 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Theme tokens ─────────────────────────────── */
+:root {
+  /* Dark theme (default) */
+  --c-s0: 8 9 15;
+  --c-s1: 15 16 24;
+  --c-s2: 20 21 31;
+  --c-s3: 26 27 39;
+  --c-s4: 33 34 48;
+  --c-t1: 255 255 255;
+  --c-t2: 255 255 255;
+  --c-t3: 255 255 255;
+  --t2-opacity: 0.52;
+  --t3-opacity: 0.24;
+  --border-color: rgba(255, 255, 255, 0.07);
+  --border-color-2: rgba(255, 255, 255, 0.14);
+  --shadow-card: none;
+  --shadow-nav: none;
+  --shadow-elevated: 0 4px 24px rgba(0, 0, 0, 0.4);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.22);
+}
+
+html.light {
+  /*
+   * Warm beige palette — parchment tones with cream cards.
+   * Text is deep warm brown, not navy/black.
+   */
+
+  /* Surfaces */
+  --c-s0: 242 236 225;    /* #F2ECE1 — warm parchment page bg   */
+  --c-s1: 253 249 242;    /* #FDF9F2 — nav / sidebar / modals   */
+  --c-s2: 255 252 245;    /* #FFFCF5 — cards (cream)            */
+  --c-s3: 246 240 230;    /* #F6F0E6 — inner panels / inputs    */
+  --c-s4: 236 228 214;    /* #ECE4D6 — hover / active state     */
+
+  /* Text — warm dark brown */
+  --c-t1: 42 31 18;       /* #2A1F12                            */
+  --c-t2: 42 31 18;
+  --c-t3: 42 31 18;
+  --t2-opacity: 0.52;
+  --t3-opacity: 0.32;
+
+  /* Borders — warm and visible */
+  --border-color: rgba(42, 31, 18, 0.10);
+  --border-color-2: rgba(42, 31, 18, 0.18);
+
+  /* Elevation through shadow */
+  --shadow-card: 0 1px 2px rgba(42, 31, 18, 0.05), 0 4px 16px rgba(42, 31, 18, 0.08);
+  --shadow-nav: 0 1px 0 rgba(42, 31, 18, 0.08), 0 4px 16px rgba(42, 31, 18, 0.06);
+  --shadow-elevated: 0 8px 32px rgba(42, 31, 18, 0.14);
+
+  --scrollbar-thumb: rgba(42, 31, 18, 0.16);
+  --scrollbar-thumb-hover: rgba(42, 31, 18, 0.28);
+}
+
+@layer base {
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    @apply bg-surface-0 text-text-1 font-sans;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { @apply bg-surface-1; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+}
+
+@layer components {
+  /* No padding on .card — each component adds its own */
+  .card {
+    @apply bg-surface-2 rounded-xl;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-card);
+    transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+  }
+
+  .card-inner {
+    @apply bg-surface-3 rounded-lg;
+    border: 1px solid var(--border-color);
+    transition: background-color 0.25s ease, border-color 0.25s ease;
+  }
+
+  .btn-primary {
+    @apply px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-150
+           bg-white text-black hover:bg-opacity-90 active:scale-95;
+  }
+
+  .btn-ghost {
+    @apply px-4 py-2 rounded-lg font-medium text-sm transition-all duration-150
+           text-text-2 hover:text-text-1 hover:bg-surface-4 active:scale-95;
+  }
+
+  .sport-pill { @apply px-2.5 py-0.5 rounded-full text-xs font-semibold; }
+
+  .live-dot { @apply w-2 h-2 rounded-full bg-red-500 animate-live-pulse; }
+
+  .input-base {
+    @apply w-full bg-surface-3 rounded-lg px-3 py-2 text-sm text-text-1 placeholder-text-3
+           focus:outline-none;
+    border: 1px solid var(--border-color);
+    transition: border-color 0.15s ease, background-color 0.25s ease;
+  }
+
+  .input-base:focus { border-color: var(--border-color-2); }
+}
+
+@layer utilities {
+  .text-sport-football  { color: #00E5B4; }
+  .text-sport-tennis    { color: #C8F135; }
+  .text-sport-cricket   { color: #FFD23F; }
+  .text-sport-f1        { color: #FF0038; }
+  .text-sport-badminton { color: #FF6B35; }
+
+  .bg-sport-football  { background-color: #00E5B4; }
+  .bg-sport-tennis    { background-color: #C8F135; }
+  .bg-sport-cricket   { background-color: #FFD23F; }
+  .bg-sport-f1        { background-color: #FF0038; }
+  .bg-sport-badminton { background-color: #FF6B35; }
+
+  .border-sport-football  { border-color: #00E5B4; }
+  .border-sport-tennis    { border-color: #C8F135; }
+  .border-sport-cricket   { border-color: #FFD23F; }
+  .border-sport-f1        { border-color: #FF0038; }
+  .border-sport-badminton { border-color: #FF6B35; }
+
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  .border-theme   { border-color: var(--border-color); }
+  .border-theme-2 { border-color: var(--border-color-2); }
+
+  /* Nav and sidebar get shadow in light mode for clear elevation */
+  .nav-elevated {
+    box-shadow: var(--shadow-nav);
+    transition: box-shadow 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
+  }
+
+  /* Mobile bottom nav shadow */
+  .mobile-nav-shadow {
+    box-shadow: 0 -1px 0 var(--border-color), 0 -4px 16px var(--shadow-nav);
+  }
+}
+
+/* ── Light mode specific overrides ─────────────── */
+
+/* Sport pills look better with more saturation against the light bg */
+html.light .sport-pill {
+  font-weight: 700;
+}
+
+/* Accent colors: darken slightly for legibility on warm beige */
+html.light .text-sport-football { color: #00A882; }
+html.light .text-sport-tennis   { color: #7A9200; }
+html.light .text-sport-cricket  { color: #B08600; }
+
+/* Input backgrounds sit on cream */
+html.light .input-base {
+  background-color: rgb(var(--c-s2));
+}
+
+/* Card hover deepens the shadow slightly */
+html.light .card:hover {
+  box-shadow: 0 2px 4px rgba(42, 31, 18, 0.08), 0 8px 24px rgba(42, 31, 18, 0.12);
+}
+
+/* Modals / drawers elevated */
+html.light [class*="fixed"][class*="bg-surface-1"],
+html.light [class*="fixed"][class*="bg-surface-2"] {
+  box-shadow: var(--shadow-elevated);
+}
