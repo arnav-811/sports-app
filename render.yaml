@@ -3,8 +3,8 @@ services:
     name: sportverse-backend
     runtime: node
     rootDir: backend
-    buildCommand: cd backend && npm install && npx prisma generate
-    startCommand: cd backend && npx prisma db push && npx ts-node --transpile-only src/server.ts
+    buildCommand: cd backend && npm install && npx prisma generate && npx prisma db push
+    startCommand: cd backend && npx ts-node --transpile-only src/server.ts
     envVars:
       - key: NODE_ENV
         value: production
