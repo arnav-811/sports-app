@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: sportverse-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm run render-build
+    startCommand: npx prisma db push && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
