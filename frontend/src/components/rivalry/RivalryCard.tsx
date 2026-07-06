@@ -20,7 +20,7 @@ export default function RivalryCard({ rivalry, currentUserId }: Props) {
     <div className="card hover:border-white/20 transition-colors">
       <div className="flex items-center gap-3">
         <div className="flex flex-col items-center gap-1 flex-1">
-          <Avatar user={me} size="lg" />
+          <Avatar src={me.avatarUrl} username={me.username} size="lg" />
           <SVScoreDisplay score={me.svScore} size="sm" />
           <span className="text-xs font-semibold text-text-primary">{me.displayName || me.username}</span>
         </div>
@@ -45,7 +45,7 @@ export default function RivalryCard({ rivalry, currentUserId }: Props) {
         </div>
 
         <div className="flex flex-col items-center gap-1 flex-1">
-          <Avatar user={them} size="lg" />
+          <Avatar src={them.avatarUrl} username={them.username} size="lg" />
           <SVScoreDisplay score={them.svScore} size="sm" />
           <span className="text-xs font-semibold text-text-primary">{them.displayName || them.username}</span>
         </div>

@@ -48,7 +48,7 @@ export function PostCard({ post, compact }: PostCardProps) {
 
   const isMatchThread = post.type === 'match_thread';
   // Support both old community shape and new ground shape
-  const ground = (post as Record<string, unknown>).ground as { name?: string; sport?: { color?: string } } | undefined;
+  const ground = (post as unknown as { ground?: { name?: string; sport?: { color?: string } } }).ground;
   const community = post.community || { name: ground?.name || '', sport: ground?.sport };
   const sportColor = community.sport?.color;
 

@@ -27,7 +27,7 @@ export function ProfileHero({ user }: { user: User }) {
 
         {/* Stats */}
         <div className="flex gap-4 mb-4">
-          <StatChip icon={<Star size={12} />} label="Karma" value={formatNumber(user.karma)} />
+          <StatChip icon={<Star size={12} />} label="Karma" value={formatNumber((user as any).karma ?? 0)} />
           <StatChip icon={<Trophy size={12} />} label="Level" value={String(user.level)} />
           <StatChip icon={<MessageSquare size={12} />} label="XP" value={formatNumber(user.xp)} />
         </div>
