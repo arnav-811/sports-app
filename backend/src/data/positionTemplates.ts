@@ -9,7 +9,7 @@ export interface PositionTemplate {
 
 export const FOOTBALL_TEMPLATES: PositionTemplate[] = [
   { category: 'player', level: 'calculated', subjectType: 'player', timeHorizon: 'match', claimTemplate: '{player} will score in {competition} this gameweek', oddsRange: [1.6, 2.5] },
-  { category: 'player', level: 'season', subjectType: 'player', timeHorizon: 'season', claimTemplate: '{player} will finish {competition} as top scorer', oddsRange: [2.0, 8.0] },
+  { category: 'player', level: 'conviction', subjectType: 'player', timeHorizon: 'season', claimTemplate: '{player} will finish {competition} as top scorer', oddsRange: [2.0, 8.0] },
   { category: 'player', level: 'speculative', subjectType: 'player', timeHorizon: 'match', claimTemplate: '{player} will win Player of the Match in {fixture}', oddsRange: [3.0, 6.0] },
   { category: 'player', level: 'calculated', subjectType: 'player', timeHorizon: 'match', claimTemplate: '{player} will complete 90 minutes in {fixture}', oddsRange: [1.4, 2.2] },
   { category: 'player', level: 'calculated', subjectType: 'player', timeHorizon: 'match', claimTemplate: '{player} will get a clean sheet in {fixture}', oddsRange: [1.8, 3.5] },
