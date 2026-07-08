@@ -11,6 +11,9 @@ import { startDirectorCronJobs } from './jobs/directorCron';
 const PORT = parseInt(process.env.PORT || '4000', 10);
 
 async function start() {
+  const dbUrl = process.env.DATABASE_URL || 'NOT SET';
+  const maskedDb = dbUrl.replace(/:([^:@]+)@/, ':****@');
+  console.log(`🗄️  DATABASE_URL: ${maskedDb}`);
   // Ensure Redis connects (non-fatal if unavailable)
   try {
     await getRedis().connect();
