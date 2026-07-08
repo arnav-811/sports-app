@@ -52,8 +52,10 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
     const user = await prisma.user.findFirst({
       where: body.login.includes('@') ? { email: body.login } : { username: body.login },
     });
+    console.log('[LOGIN DEBUG] login:', body.login, '| user found:', !!user);
     if (!user) throw createError('Invalid credentials', 401);
     const valid = await bcrypt.compare(body.password, user.passwordHash);
+    console.log('[LOGIN DEBUG] password valid:', valid);
     if (!valid) throw createError('Invalid credentials', 401);
     const payload = { userId: user.id, username: user.username, isPremium: user.isPremium };
     const accessToken = signAccessToken(payload);
