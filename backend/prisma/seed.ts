@@ -5,6 +5,12 @@ import { seedStoreItems } from '../src/services/coinStoreService';
 const prisma = new PrismaClient();
 
 async function main() {
+  const alreadySeeded = await prisma.user.findUnique({ where: { email: 'demo@sportverse.com' } });
+  if (alreadySeeded) {
+    console.log('🌱 Demo user already exists — skipping seed (safe no-op on redeploy).');
+    return;
+  }
+
   console.log('🌱 Seeding Sportverse database...');
 
   // Sports
