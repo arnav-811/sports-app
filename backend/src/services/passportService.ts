@@ -50,23 +50,16 @@ export async function addXP(userId: string, sportId: string, amount: number, rea
     });
 
     if (leveledUp) {
-      // Award coins for leveling up
-      const user = await prisma.user.findUnique({ where: { id: userId }, select: { sportcoins: true } });
-      if (user) {
-        const newBalance = user.sportcoins + 100;
-        await prisma.user.update({ where: { id: userId }, data: { sportcoins: { increment: 100 }, totalCoinsEarned: { increment: 100 } } });
-        await prisma.coinTransaction.create({
-          data: { userId, amount: 100, reason: `passport_levelup_${sportId}_${levelName}`, balance: newBalance },
-        });
-        await prisma.notification.create({
-          data: {
-            userId,
-            type: 'passport_levelup',
-            title: `${LEVEL_NAMES[level]} ${sportId} fan! 🎉`,
-            body: `You reached ${levelName} on your ${sportId} Sport Stamp! +100 Sportcoins awarded.`,
-          },
-        });
-      }
+      const { addCoins } = await import('./coinService');
+      await addCoins(userId, 100, 'passport_levelup', `Reached ${levelName} on your ${sportId} Sport Stamp`, undefined, sportId);
+      await prisma.notification.create({
+        data: {
+          userId,
+          type: 'passport_levelup',
+          title: `${levelName} ${sportId} fan! 🎉`,
+          body: `You reached ${levelName} on your ${sportId} Sport Stamp! +100 Sportcoins awarded.`,
+        },
+      });
     }
   } catch { /* non-fatal */ }
 }

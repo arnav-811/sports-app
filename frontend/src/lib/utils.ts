@@ -28,13 +28,6 @@ export function formatScore(home: string | undefined | null, away: string | unde
   return `${home ?? '0'} – ${away ?? '0'}`;
 }
 
-export function xpToLevel(xp: number): { level: number; progress: number; needed: number } {
-  const level = Math.floor(Math.sqrt(xp / 100)) + 1;
-  const levelXp = Math.pow(level - 1, 2) * 100;
-  const nextXp = Math.pow(level, 2) * 100;
-  return { level, progress: xp - levelXp, needed: nextXp - levelXp };
-}
-
 export function getSportColorClass(sportId: string): string {
   const map: Record<string, string> = {
     football: 'text-sport-football',

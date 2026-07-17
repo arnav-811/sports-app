@@ -11,7 +11,6 @@ import MemoryArchive from '../components/memory/MemoryArchive';
 import { useAuthStore } from '../store/authStore';
 import { Rivalry } from '../types/rivalry';
 import { MapPin, Calendar, Star, Zap, MessageSquare, Swords, Trophy } from 'lucide-react';
-import { xpToLevel } from '../lib/utils';
 import CoinBalance from '../components/economy/CoinBalance';
 import PredictionStats from '../components/economy/PredictionStats';
 
@@ -56,7 +55,6 @@ export default function FanCardPage() {
   if (isLoading) return <div className="animate-pulse space-y-4 p-4"><div className="h-32 bg-surface-2 rounded-xl" /><div className="h-48 bg-surface-2 rounded-xl" /></div>;
   if (!profile) return <div className="text-center py-12 text-text-muted">Fan Card not found</div>;
 
-  const levelData = xpToLevel(profile.xp);
   const isMe = me?.username === username;
 
   return (

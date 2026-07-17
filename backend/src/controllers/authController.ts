@@ -3,7 +3,11 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma';
 import { signAccessToken, signRefreshToken, verifyRefreshToken, saveRefreshToken, revokeRefreshToken } from '../lib/jwt';
 import { createError } from '../middleware/errorHandler';
+import { getOrCreateDirectorProfile } from '../services/directorService';
+import { generateDailyQuests, generateWeeklyQuest, generateMonthlyQuest } from '../services/questService';
 import { z } from 'zod';
+
+const SPORT_IDS = ['football', 'tennis', 'cricket', 'f1', 'badminton'];
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -38,6 +42,26 @@ export async function register(req: Request, res: Response, next: NextFunction):
         favoriteClubs: JSON.stringify([]),
       },
     });
+
+    // Onboarding side-effects: welcome bonus ledger entry, Director profile,
+    // Sport Passport (all 5 sports at level 0), and first quest set.
+    await prisma.coinTransaction.create({
+      data: {
+        userId: user.id, amount: 1000, type: 'earn', reason: 'signup_bonus',
+        description: 'Welcome to Sportverse! Signup bonus', balanceBefore: 0, balanceAfter: 1000,
+      },
+    });
+    await getOrCreateDirectorProfile(user.id);
+    const passport = await prisma.sportPassport.create({ data: { userId: user.id } });
+    await Promise.all(SPORT_IDS.map(sportId =>
+      prisma.sportStamp.create({ data: { passportId: passport.id, sportId } })
+    ));
+    await Promise.all([
+      generateDailyQuests(user.id),
+      generateWeeklyQuest(user.id),
+      generateMonthlyQuest(user.id),
+    ]);
+
     const payload = { userId: user.id, username: user.username, isPremium: user.isPremium };
     const accessToken = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
@@ -52,10 +76,8 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
     const user = await prisma.user.findFirst({
       where: body.login.includes('@') ? { email: body.login } : { username: body.login },
     });
-    console.log('[LOGIN DEBUG] login:', body.login, '| user found:', !!user);
-    if (!user) throw createError('Invalid credentials', 401);
+    if (!user || user.deletedAt) throw createError('Invalid credentials', 401);
     const valid = await bcrypt.compare(body.password, user.passwordHash);
-    console.log('[LOGIN DEBUG] password valid:', valid);
     if (!valid) throw createError('Invalid credentials', 401);
     const payload = { userId: user.id, username: user.username, isPremium: user.isPremium };
     const accessToken = signAccessToken(payload);
@@ -112,13 +134,41 @@ export async function updateMe(req: Request, res: Response, next: NextFunction):
       city: z.string().optional(),
       favoriteSports: z.array(z.string()).optional(),
       favoriteClubs: z.array(z.string()).optional(),
+      notificationPrefs: z.record(z.boolean()).optional(),
     });
     const data = schema.parse(req.body);
     const updateData: Record<string, unknown> = { ...data };
     if (data.favoriteSports) updateData.favoriteSports = JSON.stringify(data.favoriteSports);
     if (data.favoriteClubs) updateData.favoriteClubs = JSON.stringify(data.favoriteClubs);
+    if (data.notificationPrefs) updateData.notificationPrefs = JSON.stringify(data.notificationPrefs);
     const user = await prisma.user.update({ where: { id: req.user!.userId }, data: updateData });
     res.json(sanitizeUser(user));
+  } catch (err) { next(err); }
+}
+
+export async function changePassword(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const schema = z.object({ currentPassword: z.string(), newPassword: z.string().min(6).max(128) });
+    const { currentPassword, newPassword } = schema.parse(req.body);
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: req.user!.userId } });
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) throw createError('Current password is incorrect', 401);
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await prisma.user.update({ where: { id: req.user!.userId }, data: { passwordHash } });
+    res.json({ message: 'Password changed successfully' });
+  } catch (err) { next(err); }
+}
+
+export async function deleteAccount(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const schema = z.object({ password: z.string() });
+    const { password } = schema.parse(req.body);
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: req.user!.userId } });
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) throw createError('Incorrect password', 401);
+    await prisma.user.update({ where: { id: req.user!.userId }, data: { deletedAt: new Date() } });
+    await prisma.refreshToken.deleteMany({ where: { userId: req.user!.userId } });
+    res.json({ message: 'Account deactivated' });
   } catch (err) { next(err); }
 }
 
@@ -138,6 +188,9 @@ export function sanitizeUser(user: Record<string, unknown>) {
   }
   if (typeof safe.favoriteClubs === 'string') {
     try { safe.favoriteClubs = JSON.parse(safe.favoriteClubs as string); } catch { safe.favoriteClubs = []; }
+  }
+  if (typeof safe.notificationPrefs === 'string') {
+    try { safe.notificationPrefs = JSON.parse(safe.notificationPrefs as string); } catch { safe.notificationPrefs = {}; }
   }
   if (typeof safe.activeSports === 'string') {
     try { safe.activeSports = JSON.parse(safe.activeSports as string); } catch { safe.activeSports = []; }

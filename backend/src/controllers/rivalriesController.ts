@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
+import { spendCoins } from '../services/coinService';
+
+const MAX_ACTIVE_RIVALRIES = 5;
 
 const RIVAL_INCLUDE = {
   challenger: { select: { id: true, username: true, displayName: true, avatarUrl: true, svScore: true, cred: true } },
@@ -13,6 +16,15 @@ export async function sendRivalryRequest(req: Request, res: Response, next: Next
     const target = await prisma.user.findUnique({ where: { id: req.params.targetUserId } });
     if (!target) throw createError('User not found', 404);
     if (target.id === req.user!.userId) throw createError('Cannot rival yourself', 400);
+
+    const me = await prisma.user.findUniqueOrThrow({ where: { id: req.user!.userId }, select: { level: true } });
+    if (me.level < 10) throw createError('Reach Level 10 to unlock Rivalries', 403);
+    if (target.level < 10) throw createError('This user has not unlocked Rivalries yet', 400);
+
+    const activeCount = await prisma.rivalry.count({
+      where: { status: { in: ['pending', 'active'] }, OR: [{ challengerId: req.user!.userId }, { challengedId: req.user!.userId }] },
+    });
+    if (activeCount >= MAX_ACTIVE_RIVALRIES) throw createError(`Max ${MAX_ACTIVE_RIVALRIES} active rivalries`, 400);
 
     const rivalry = await prisma.rivalry.create({
       data: { challengerId: req.user!.userId, challengedId: target.id },
@@ -86,6 +98,26 @@ export async function getRivalryCard(req: Request, res: Response, next: NextFunc
     })();
 
     res.json({ ...rivalry, stats: stats ? { ...stats, challengerSVHistory, challengedSVHistory } : null });
+  } catch (err) { next(err); }
+}
+
+export async function raiseStakes(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const rivalry = await prisma.rivalry.findUnique({ where: { id: req.params.id } });
+    if (!rivalry) throw createError('Rivalry not found', 404);
+    if (rivalry.status !== 'active') throw createError('Rivalry is not active', 400);
+    if (![rivalry.challengerId, rivalry.challengedId].includes(req.user!.userId)) throw createError('Forbidden', 403);
+    if (rivalry.isHighStakes) throw createError('Already high stakes for the next battle', 400);
+
+    await spendCoins(req.user!.userId, 100, 'rivalry_high_stakes', 'Raised rivalry stakes to 400 coins', rivalry.id);
+    const updated = await prisma.rivalry.update({ where: { id: req.params.id }, data: { isHighStakes: true } });
+
+    const rivalId = rivalry.challengerId === req.user!.userId ? rivalry.challengedId : rivalry.challengerId;
+    await prisma.notification.create({
+      data: { userId: rivalId, type: 'rivalry_high_stakes', title: '🔥 High Stakes!', body: 'Your rival raised the next battle to a 400-coin pot.', link: '/rivalries', isRead: false },
+    });
+
+    res.json(updated);
   } catch (err) { next(err); }
 }
 

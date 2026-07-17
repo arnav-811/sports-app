@@ -1,30 +1,27 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { getSportColor } from '../../config/sports';
+import { seededRandom } from '../../lib/seededRandom';
 
 interface Zone { x: number; y: number; intensity: number; team: 'home' | 'away' }
 
-function randomZones(n: number): Zone[] {
+function buildZones(seed: string, n: number): Zone[] {
+  const rand = seededRandom(seed);
   return Array.from({ length: n }, () => ({
-    x: Math.random() * 100,
-    y: Math.random() * 100,
-    intensity: Math.random(),
-    team: Math.random() > 0.5 ? 'home' : 'away',
+    x: rand() * 100,
+    y: rand() * 100,
+    intensity: rand(),
+    team: rand() > 0.5 ? 'home' : 'away',
   }));
 }
 
 export function PressureMap({ sportId = 'football' }: { sportId?: string }) {
-  const [zones, setZones] = useState<Zone[]>(randomZones(20));
+  const zones = useMemo(() => buildZones(`pressure-${sportId}`, 20), [sportId]);
   const color = getSportColor(sportId);
-
-  useEffect(() => {
-    const interval = setInterval(() => setZones(randomZones(20)), 15000);
-    return () => clearInterval(interval);
-  }, []);
 
   return (
     <div className="card p-4">
       <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-        <span style={{ color }}>⚡</span> Live Pressure Map
+        <span style={{ color }}>⚡</span> Pressure Map
       </h3>
       <div className="relative rounded-lg overflow-hidden" style={{ paddingTop: '65%', background: 'linear-gradient(to bottom, #1a2e1a, #0f1f0f)' }}>
         {/* Pitch markings */}

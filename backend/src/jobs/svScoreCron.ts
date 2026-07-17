@@ -1,5 +1,8 @@
 import cron from 'node-cron';
 import { updateAllSVScores } from '../services/svScoreService';
+import { addCoins } from '../services/coinService';
+import { awardXP } from '../services/levelService';
+import { updateQuestProgress } from '../services/questService';
 import { prisma } from '../lib/prisma';
 
 export function startCronJobs(): void {
@@ -9,11 +12,11 @@ export function startCronJobs(): void {
     try { await updateAllSVScores(); console.log('✅ SV Scores updated'); } catch (e) { console.error('SV Score cron error:', e); }
   });
 
-  // Close debates older than 24h — every 10 minutes
+  // Close debates past their 7-day closesAt — every 10 minutes
   cron.schedule(process.env.CRON_DEBATE_CLOSE || '*/10 * * * *', async () => {
     try {
       const stale = await prisma.debate.findMany({
-        where: { status: { in: ['open', 'voting'] }, closedAt: { lte: new Date() } },
+        where: { status: 'open', closedAt: { lte: new Date() } },
         include: { entries: true },
       });
       for (const debate of stale) {
@@ -26,18 +29,34 @@ export function startCronJobs(): void {
           data: { status: 'closed', closedAt: new Date(), winningSide },
         });
 
-        // Award cred to winners
         const winners = debate.entries.filter(e => e.side === winningSide);
+        const losers = debate.entries.filter(e => e.side !== winningSide);
+        const loserPool = losers.reduce((s, e) => s + e.coinsStaked, 0);
+        const share = winners.length > 0 ? Math.floor(loserPool / winners.length) : 0;
+
         for (const entry of winners) {
+          const payout = entry.coinsStaked + share;
           await prisma.user.update({
             where: { id: entry.userId },
-            data: { cred: { increment: 50 }, debateWins: { increment: 1 }, sportcoins: { increment: 50 }, totalCoinsEarned: { increment: 50 } },
+            data: { cred: { increment: 50 }, debateWins: { increment: 1 } },
           });
+          await addCoins(entry.userId, payout, 'debate_win', `Won debate: ${debate.question}`, debate.id, debate.sportId);
+          await prisma.debateEntry.update({ where: { id: entry.id }, data: { isWinner: true, coinsWon: payout } });
+          await awardXP(entry.userId, 25, 'debate_win');
+          await updateQuestProgress(entry.userId, 'win_debate');
         }
-        const losers = debate.entries.filter(e => e.side !== winningSide);
         for (const entry of losers) {
           await prisma.user.update({ where: { id: entry.userId }, data: { debateLosses: { increment: 1 } } });
         }
+
+        if (debate.creatorId && debate.entries.length >= 50) {
+          await addCoins(debate.creatorId, 100, 'debate_creator_bonus', `Your debate "${debate.question}" reached 50+ entries`, debate.id);
+        }
+
+        const bestWinner = [...winners].sort((a, b) => b.votes - a.votes)[0];
+        if (bestWinner) await addCoins(bestWinner.userId, 100, 'debate_best_argument', 'Best argument on the winning side', debate.id);
+        const bestLoser = [...losers].sort((a, b) => b.votes - a.votes)[0];
+        if (bestLoser) await addCoins(bestLoser.userId, 25, 'debate_best_argument_consolation', 'Best argument on the losing side', debate.id);
       }
     } catch (e) { console.error('Debate cron error:', e); }
   });

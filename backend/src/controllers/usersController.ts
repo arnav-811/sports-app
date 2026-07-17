@@ -130,3 +130,25 @@ export async function getGlobalSVLeaderboard(_req: Request, res: Response, next:
     })));
   } catch (err) { next(err); }
 }
+
+export async function getLevelLeaderboard(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const users = await prisma.user.findMany({
+      orderBy: [{ level: 'desc' }, { xp: 'desc' }],
+      take: 100,
+      select: { id: true, username: true, displayName: true, avatarUrl: true, level: true, xp: true, svScore: true },
+    });
+    res.json(users.map((u, i) => ({ ...u, rank: i + 1 })));
+  } catch (err) { next(err); }
+}
+
+export async function getCoinsLeaderboard(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const users = await prisma.user.findMany({
+      orderBy: { sportcoins: 'desc' },
+      take: 100,
+      select: { id: true, username: true, displayName: true, avatarUrl: true, sportcoins: true, level: true },
+    });
+    res.json(users.map((u, i) => ({ ...u, rank: i + 1 })));
+  } catch (err) { next(err); }
+}

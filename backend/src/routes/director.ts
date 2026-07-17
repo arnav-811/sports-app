@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requireAdmin } from '../middleware/auth';
 import * as directorService from '../services/directorService';
 import { THIS_WEEK_LANDSCAPE } from '../data/positionTemplates';
 
@@ -267,6 +267,28 @@ router.get('/leaderboard/contrarian', async (req, res: Response) => {
     const board = await directorService.getDirectorLeaderboard('alltime');
     res.json(board.sort((a, b) => b.contrairianWins - a.contrairianWins));
   } catch (e: unknown) { res.status(500).json({ error: (e as Error).message }); }
+});
+
+// Admin: manual position resolution (no live sports data feed exists)
+router.get('/admin/positions/pending', requireAdmin, async (_req, res: Response) => {
+  try {
+    const { prisma } = await import('../lib/prisma');
+    const pending = await prisma.availablePosition.findMany({
+      where: { expiresAt: { lte: new Date() }, isActive: true, outcome: null },
+      include: { sport: true },
+      orderBy: { expiresAt: 'asc' },
+    });
+    res.json(pending);
+  } catch (e: unknown) { res.status(500).json({ error: (e as Error).message }); }
+});
+
+router.post('/admin/positions/:id/resolve', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { outcome } = req.body;
+    if (outcome !== 'win' && outcome !== 'loss') return res.status(400).json({ error: "outcome must be 'win' or 'loss'" });
+    const result = await directorService.resolvePosition(req.params.id, outcome);
+    res.json(result);
+  } catch (e: unknown) { res.status(400).json({ error: (e as Error).message }); }
 });
 
 export { router as directorRouter };

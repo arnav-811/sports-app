@@ -1,21 +1,24 @@
+import { useMemo } from 'react';
 import { getSportColor } from '../../config/sports';
+import { seededRandom } from '../../lib/seededRandom';
 
 interface Serve { x: number; y: number; type: 'ace' | 'winner' | 'fault' | 'in' }
 
-function randomServes(n: number): Serve[] {
+function buildServes(seed: string, n: number): Serve[] {
+  const rand = seededRandom(seed);
   const types: Serve['type'][] = ['ace', 'winner', 'fault', 'in', 'in', 'in'];
   return Array.from({ length: n }, () => ({
-    x: 10 + Math.random() * 35,
-    y: 5 + Math.random() * 55,
-    type: types[Math.floor(Math.random() * types.length)],
+    x: 10 + rand() * 35,
+    y: 5 + rand() * 55,
+    type: types[Math.floor(rand() * types.length)],
   }));
 }
 
-const SERVES = randomServes(30);
 const SERVE_COLORS: Record<string, string> = { ace: '#FFD700', winner: '#00E5B4', fault: '#FF0038', in: 'rgba(255,255,255,0.4)' };
 
 export function ServeHeatmap({ sportId = 'tennis' }: { sportId?: string }) {
   const color = getSportColor(sportId);
+  const serves = useMemo(() => buildServes(`serve-${sportId}`, 30), [sportId]);
 
   return (
     <div className="card p-4">
@@ -29,7 +32,7 @@ export function ServeHeatmap({ sportId = 'tennis' }: { sportId?: string }) {
           <line x1="5" y1="37.5" x2="95" y2="37.5" stroke="rgba(255,255,255,0.15)" strokeWidth="0.5" />
           <line x1="5" y1="23" x2="95" y2="23" stroke="rgba(255,255,255,0.15)" strokeWidth="0.5" />
           {/* Serves */}
-          {SERVES.map((s, i) => (
+          {serves.map((s, i) => (
             <circle key={i} cx={s.x} cy={s.y} r={2.5} fill={SERVE_COLORS[s.type]} opacity={0.8} />
           ))}
         </svg>

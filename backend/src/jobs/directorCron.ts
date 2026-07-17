@@ -1,25 +1,18 @@
 import cron from 'node-cron';
 import { prisma } from '../lib/prisma';
-import { resolvePosition, updateOdds, updateAllReputations } from '../services/directorService';
+import { updateOdds, updateAllReputations } from '../services/directorService';
 
 export function startDirectorCronJobs() {
-  // Resolve expired positions: every hour
+  // Flag expired-but-unresolved positions for admin attention — every hour.
+  // There is no live sports data feed, so resolution is manual (see
+  // POST /director/admin/positions/:id/resolve) rather than simulated.
   cron.schedule('0 * * * *', async () => {
-    console.log('⏰ [Director] Checking position resolutions...');
     try {
-      const expired = await prisma.availablePosition.findMany({
+      const expiredCount = await prisma.availablePosition.count({
         where: { expiresAt: { lte: new Date() }, isActive: true, outcome: null },
-        select: { id: true },
       });
-      for (const pos of expired) {
-        // Mock resolution — in production this would check real-world outcome
-        const outcome = Math.random() > 0.45 ? 'win' : 'loss';
-        await resolvePosition(pos.id, outcome as 'win' | 'loss').catch(e =>
-          console.error(`Position resolve error ${pos.id}:`, e)
-        );
-      }
-      if (expired.length > 0) console.log(`✅ Resolved ${expired.length} positions`);
-    } catch (e) { console.error('Director resolve cron error:', e); }
+      if (expiredCount > 0) console.log(`⏰ [Director] ${expiredCount} position(s) awaiting admin resolution`);
+    } catch (e) { console.error('Director resolve-check cron error:', e); }
   });
 
   // Update odds: every 30 minutes

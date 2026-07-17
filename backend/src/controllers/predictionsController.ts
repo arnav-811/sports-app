@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
+import { spendCoins } from '../services/coinService';
+import { getLevelUnlocks } from '../services/levelService';
 
 const QUESTION_TEMPLATES: Record<string, (match: { homeTeam: string; awayTeam: string }) => Array<{ question: string; options: string[]; baseOdds: number[] }>> = {
   football: (m) => [
@@ -60,24 +62,12 @@ export async function placePrediction(req: Request, res: Response, next: NextFun
     const { matchId, sportId, question, optionChosen, options, oddsAtTime, coinsStaked } = req.body;
     if (!coinsStaked || coinsStaked < 25) throw createError('Minimum stake is 25 coins', 400);
 
-    const user = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { sportcoins: true } });
+    const user = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { level: true } });
     if (!user) throw createError('User not found', 404);
-    if (user.sportcoins < coinsStaked) throw createError('Insufficient Sportcoins', 400);
+    const maxStake = getLevelUnlocks(user.level).predictionMaxStake;
+    if (maxStake !== null && coinsStaked > maxStake) throw createError(`Stake must be ${maxStake} coins or less at your level`, 400);
 
-    await prisma.user.update({
-      where: { id: req.user!.userId },
-      data: { sportcoins: { decrement: coinsStaked }, totalCoinsSpent: { increment: coinsStaked } },
-    });
-
-    const balanceAfter = user.sportcoins - coinsStaked;
-    await prisma.coinTransaction.create({
-      data: {
-        userId: req.user!.userId,
-        amount: -coinsStaked,
-        reason: 'prediction_stake',
-        balance: balanceAfter,
-      },
-    });
+    const tx = await spendCoins(req.user!.userId, coinsStaked, 'prediction_stake', `Prediction: ${question}`, matchId);
 
     const prediction = await prisma.livePrediction.create({
       data: {
@@ -98,7 +88,7 @@ export async function placePrediction(req: Request, res: Response, next: NextFun
       data: { predictionCount: { increment: 1 } },
     });
 
-    res.status(201).json({ prediction, newBalance: balanceAfter });
+    res.status(201).json({ prediction, newBalance: tx.balanceAfter });
   } catch (err) { next(err); }
 }
 

@@ -10,6 +10,7 @@ interface SocketState {
   unsubscribeMatch: (matchId: string) => void;
   subscribeCommunity: (communityId: string) => void;
   subscribePost: (postId: string) => void;
+  subscribeUser: (userId: string) => void;
 }
 
 export const useSocketStore = create<SocketState>((set, get) => ({
@@ -36,4 +37,5 @@ export const useSocketStore = create<SocketState>((set, get) => ({
   unsubscribeMatch: (matchId) => get().socket?.emit('match:unsubscribe', { matchId }),
   subscribeCommunity: (communityId) => get().socket?.emit('community:subscribe', { communityId }),
   subscribePost: (postId) => get().socket?.emit('post:subscribe', { postId }),
+  subscribeUser: (userId) => get().socket?.emit('user:subscribe', { userId }),
 }));

@@ -1,6 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
+import { addCoins, loseCoins } from '../services/coinService';
+import { awardXP, getLevelUnlocks } from '../services/levelService';
+import { computeRosterPoints, SportId } from '../services/draftScoringService';
+import { updateQuestProgress } from '../services/questService';
 
 const PLAYER_POOLS: Record<string, { id: string; name: string; team: string; role: string; price: number; form: number }[]> = {
   football: [
@@ -99,20 +104,6 @@ const PLAYER_POOLS: Record<string, { id: string; name: string; team: string; rol
 const BUDGETS: Record<string, number> = { football: 100, cricket: 100, f1: 100, tennis: 60, badminton: 60 };
 const TEAM_SIZES: Record<string, number> = { football: 11, cricket: 11, f1: 5, tennis: 5, badminton: 5 };
 
-function computePoints(
-  players: { id: string; form: number }[],
-  captain: string | null,
-  viceCaptain: string | null,
-): number {
-  let total = 0;
-  for (const p of players) {
-    const base = (p.form || 5) * (0.7 + Math.random() * 0.6) * 9;
-    const mult = p.id === captain ? 2 : p.id === viceCaptain ? 1.5 : 1;
-    total += base * mult;
-  }
-  return Math.round(total * 10) / 10;
-}
-
 export async function listDraftLeagues(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const leagues = await prisma.draftLeague.findMany({
@@ -160,6 +151,54 @@ export async function getMyRosters(req: Request, res: Response, next: NextFuncti
   } catch (err) { next(err); }
 }
 
+export async function createLeague(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { sportId, name, deadline } = req.body;
+    if (!sportId || !name || !deadline) throw createError('sportId, name, and deadline are required', 400);
+
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: req.user!.userId }, select: { level: true } });
+    if (user.level < 5) throw createError('Reach Level 5 to create a private league', 403);
+    const maxMembers = getLevelUnlocks(user.level).privateLeagueMaxMembers;
+    if (maxMembers === 0) throw createError('Your level does not permit creating private leagues', 403);
+
+    const inviteCode = crypto.randomBytes(4).toString('hex');
+    const league = await prisma.draftLeague.create({
+      data: {
+        sportId, name, format: sportId, type: 'private',
+        inviteCode, ownerId: req.user!.userId,
+        maxTeams: maxMembers ?? 200,
+        deadline: new Date(deadline),
+      },
+    });
+    res.status(201).json(league);
+  } catch (err) { next(err); }
+}
+
+export async function joinLeagueByInvite(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { inviteCode, name } = req.body;
+    if (!inviteCode) throw createError('inviteCode is required', 400);
+
+    const league = await prisma.draftLeague.findUnique({ where: { inviteCode } });
+    if (!league) throw createError('Invalid invite code', 404);
+    if (new Date(league.deadline) < new Date()) throw createError('Deadline has passed', 400);
+
+    const memberCount = await prisma.draftRoster.count({ where: { leagueId: league.id } });
+    if (memberCount >= league.maxTeams) throw createError('This league is full', 400);
+
+    const roster = await prisma.draftRoster.upsert({
+      where: { userId_leagueId: { userId: req.user!.userId, leagueId: league.id } },
+      create: {
+        userId: req.user!.userId, leagueId: league.id, name: name || 'My Team',
+        playersJson: JSON.stringify({ players: [], captain: null, viceCaptain: null }),
+      },
+      update: {},
+      include: { league: true },
+    });
+    res.status(201).json(roster);
+  } catch (err) { next(err); }
+}
+
 export async function joinLeague(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { leagueId } = req.params;
@@ -168,6 +207,11 @@ export async function joinLeague(req: Request, res: Response, next: NextFunction
     const league = await prisma.draftLeague.findUnique({ where: { id: leagueId } });
     if (!league) throw createError('League not found', 404);
     if (new Date(league.deadline) < new Date()) throw createError('Deadline has passed', 400);
+
+    if (league.type === 'private') {
+      const memberCount = await prisma.draftRoster.count({ where: { leagueId } });
+      if (memberCount >= league.maxTeams) throw createError('This league is full', 400);
+    }
 
     const existing = await prisma.draftRoster.findUnique({
       where: { userId_leagueId: { userId: req.user!.userId, leagueId } },
@@ -223,28 +267,17 @@ export async function updateRoster(req: Request, res: Response, next: NextFuncti
     if (!roster) throw createError('Roster not found', 404);
     if (roster.userId !== req.user!.userId) throw createError('Forbidden', 403);
 
-    const totalPoints = players?.length > 0
-      ? computePoints(players, captain, viceCaptain)
-      : roster.totalPoints;
-
-    const leagueRosterCount = await prisma.draftRoster.count({ where: { leagueId: roster.leagueId } });
-    const rank = Math.max(1, Math.floor(Math.random() * leagueRosterCount * 0.3) + 1);
-
     const updated = await prisma.draftRoster.update({
       where: { id: req.params.id },
       data: {
         ...(name ? { name } : {}),
         playersJson: JSON.stringify({ players: players || [], captain: captain ?? null, viceCaptain: viceCaptain ?? null }),
-        totalPoints,
-        rank,
       },
       include: { league: true },
     });
 
     res.json({
       ...updated,
-      totalPoints,
-      rank,
       playersJson: { players: players || [], captain: captain ?? null, viceCaptain: viceCaptain ?? null },
     });
   } catch (err) { next(err); }
@@ -259,13 +292,6 @@ export async function saveTeam(req: Request, res: Response, next: NextFunction):
     if (!league) throw createError('League not found', 404);
     if (new Date(league.deadline) < new Date()) throw createError('Deadline has passed', 400);
 
-    const totalPoints = players?.length > 0
-      ? computePoints(players, captain, viceCaptain)
-      : 0;
-
-    const leagueRosterCount = await prisma.draftRoster.count({ where: { leagueId } });
-    const rank = Math.max(1, Math.floor(Math.random() * (leagueRosterCount + 1) * 0.4) + 1);
-
     const roster = await prisma.draftRoster.upsert({
       where: { userId_leagueId: { userId: req.user!.userId, leagueId } },
       create: {
@@ -273,22 +299,19 @@ export async function saveTeam(req: Request, res: Response, next: NextFunction):
         leagueId,
         name: name || 'My Team',
         playersJson: JSON.stringify({ players: players || [], captain: captain ?? null, viceCaptain: viceCaptain ?? null }),
-        totalPoints,
-        rank,
       },
       update: {
         name: name || 'My Team',
         playersJson: JSON.stringify({ players: players || [], captain: captain ?? null, viceCaptain: viceCaptain ?? null }),
-        totalPoints,
-        rank,
       },
       include: { league: true },
     });
 
+    await awardXP(req.user!.userId, 10, 'draft_lineup');
+    await updateQuestProgress(req.user!.userId, 'draft_lineup');
+
     res.json({
       ...roster,
-      totalPoints,
-      rank,
       playersJson: { players: players || [], captain: captain ?? null, viceCaptain: viceCaptain ?? null },
     });
   } catch (err) { next(err); }
@@ -316,15 +339,76 @@ export async function getPlayers(req: Request, res: Response, next: NextFunction
 
 export async function getLivePoints(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    // "Live" points reflect the last admin-resolved scoring period — there is no
+    // real-time sports feed, so this is honestly the roster's current totalPoints,
+    // not an inflated estimate.
     const rosters = await prisma.draftRoster.findMany({
       where: { userId: req.user!.userId },
       include: { league: true },
     });
     const result = rosters.map(r => ({
       ...r,
-      livePoints: Math.floor(Math.random() * 30) + r.totalPoints,
+      livePoints: r.totalPoints,
       playersJson: (() => { try { return JSON.parse(r.playersJson); } catch { return {}; } })(),
     }));
     res.json(result);
+  } catch (err) { next(err); }
+}
+
+// ─── Admin: real scoring, driven by entered match performance ─────────────────
+
+export async function setPlayerStats(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { leagueId } = req.params;
+    const { playerId, sportId, stats } = req.body;
+    if (!playerId || !sportId || !stats) throw createError('playerId, sportId, and stats are required', 400);
+
+    const entry = await prisma.playerMatchStats.upsert({
+      where: { leagueId_playerId: { leagueId, playerId } },
+      create: { leagueId, playerId, sportId, statsJson: JSON.stringify(stats) },
+      update: { statsJson: JSON.stringify(stats) },
+    });
+    res.status(201).json({ ...entry, statsJson: stats });
+  } catch (err) { next(err); }
+}
+
+export async function resolveLeague(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { leagueId } = req.params;
+    const league = await prisma.draftLeague.findUnique({ where: { id: leagueId } });
+    if (!league) throw createError('League not found', 404);
+
+    const [rosters, playerStats] = await Promise.all([
+      prisma.draftRoster.findMany({ where: { leagueId } }),
+      prisma.playerMatchStats.findMany({ where: { leagueId } }),
+    ]);
+    const statsByPlayer: Record<string, unknown> = {};
+    for (const ps of playerStats) statsByPlayer[ps.playerId] = JSON.parse(ps.statsJson);
+
+    const scored = rosters.map(r => {
+      const parsed = (() => { try { return JSON.parse(r.playersJson); } catch { return { players: [], captain: null, viceCaptain: null }; } })();
+      const playerIds: string[] = (parsed.players || []).map((p: { id: string }) => p.id);
+      const totalPoints = computeRosterPoints(league.sportId as SportId, playerIds, statsByPlayer, parsed.captain ?? null, parsed.viceCaptain ?? null);
+      return { rosterId: r.id, userId: r.userId, totalPoints };
+    });
+    scored.sort((a, b) => b.totalPoints - a.totalPoints);
+
+    await Promise.all(scored.map((s, i) =>
+      prisma.draftRoster.update({ where: { id: s.rosterId }, data: { totalPoints: s.totalPoints, rank: i + 1 } })
+    ));
+
+    for (const [i, s] of scored.entries()) {
+      if (i < 3) {
+        await addCoins(s.userId, 150, 'draft_top3', `Top 3 finish in ${league.name}`, league.id, league.sportId);
+        await awardXP(s.userId, 30, 'draft_top3');
+      }
+      if (i >= scored.length - 3 && scored.length > 3) {
+        await loseCoins(s.userId, 50, 'draft_bottom3', `Bottom 3 finish in ${league.name}`, league.id);
+      }
+    }
+
+    await prisma.draftLeague.update({ where: { id: leagueId }, data: { isActive: false } });
+
+    res.json({ resolved: true, standings: scored });
   } catch (err) { next(err); }
 }

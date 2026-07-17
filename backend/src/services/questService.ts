@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { addCoins } from './coinService';
+import { awardXP } from './levelService';
+import { emitToUser } from './socketService';
 
 const prisma = new PrismaClient();
 
@@ -137,9 +139,11 @@ export async function updateQuestProgress(userId: string, action: string, value 
 
     if (completed) {
       await addCoins(userId, quest.coinReward, 'quest_daily', `Quest complete: ${quest.description}`, quest.id);
+      if (quest.xpReward > 0) await awardXP(userId, quest.xpReward, 'quest_daily');
       await prisma.notification.create({
         data: { userId, type: 'quest_complete', title: '🎯 Quest complete!', body: `${quest.description} — +${quest.coinReward} ⚡`, isRead: false },
       });
+      emitToUser(userId, 'quest:complete', { questType: quest.questType, coinReward: quest.coinReward, xpReward: quest.xpReward });
     }
   }
 
@@ -154,9 +158,11 @@ export async function updateQuestProgress(userId: string, action: string, value 
     });
     if (completed) {
       await addCoins(userId, quest.coinReward, 'quest_weekly', `Weekly quest complete: ${quest.description}`, quest.id);
+      if (quest.xpReward > 0) await awardXP(userId, quest.xpReward, 'quest_weekly');
       await prisma.notification.create({
         data: { userId, type: 'quest_complete', title: '🎯 Weekly quest complete!', body: `${quest.description} — +${quest.coinReward} ⚡`, isRead: false },
       });
+      emitToUser(userId, 'quest:complete', { questType: quest.questType, coinReward: quest.coinReward, xpReward: quest.xpReward });
     }
   }
 
@@ -170,6 +176,11 @@ export async function updateQuestProgress(userId: string, action: string, value 
     });
     if (completed) {
       await addCoins(userId, quest.coinReward, 'quest_monthly', `Monthly quest complete: ${quest.description}`, quest.id);
+      if (quest.xpReward > 0) await awardXP(userId, quest.xpReward, 'quest_monthly');
+      await prisma.notification.create({
+        data: { userId, type: 'quest_complete', title: '🎯 Monthly quest complete!', body: `${quest.description} — +${quest.coinReward} ⚡`, isRead: false },
+      });
+      emitToUser(userId, 'quest:complete', { questType: quest.questType, coinReward: quest.coinReward, xpReward: quest.xpReward });
     }
   }
 }

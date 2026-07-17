@@ -2,6 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { cacheGet, cacheSet } from '../lib/redis';
+import { addCoins } from '../services/coinService';
+import { awardXP } from '../services/levelService';
+import { updateQuestProgress } from '../services/questService';
 
 const TAKE_INCLUDE = {
   author: { select: { id: true, username: true, displayName: true, avatarUrl: true, level: true, cred: true, svScore: true } },
@@ -70,6 +73,11 @@ export async function createTake(req: Request, res: Response, next: NextFunction
     }
 
     await prisma.ground.update({ where: { id: groundId }, data: { takeCount: { increment: 1 } } });
+
+    await addCoins(req.user!.userId, 5, 'post_take', `Posted a Take: ${title}`, take.id, sportId);
+    await awardXP(req.user!.userId, 5, 'post_take');
+    await updateQuestProgress(req.user!.userId, 'post_take');
+
     res.status(201).json(take);
   } catch (err) { next(err); }
 }
@@ -141,6 +149,10 @@ export async function signalTake(req: Request, res: Response, next: NextFunction
           downvotes: value === -1 ? { increment: 1 } : undefined,
         },
       });
+
+      await awardXP(req.user!.userId, 1, 'vote_take');
+      if (value === 1) await updateQuestProgress(req.user!.userId, 'back_takes');
+
       res.json({ signaled: true, newValue: value });
     }
   } catch (err) { next(err); }
@@ -159,7 +171,7 @@ export async function awardTake(req: Request, res: Response, next: NextFunction)
 export async function getTakeReplies(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const replies = await prisma.terraceReply.findMany({
-      where: { takeId: req.params.id, parentId: null },
+      where: { takeId: req.params.id, parentId: null, isDeleted: false },
       include: {
         author: { select: { id: true, username: true, displayName: true, avatarUrl: true, level: true, svScore: true } },
         replies: {
@@ -169,7 +181,6 @@ export async function getTakeReplies(req: Request, res: Response, next: NextFunc
           where: { isDeleted: false },
         },
       },
-      where: { takeId: req.params.id, parentId: null, isDeleted: false } as Parameters<typeof prisma.terraceReply.findMany>[0]['where'],
       orderBy: { voteScore: 'desc' },
     });
     res.json(replies);

@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { addCoins, loseCoins, spendCoins, InsufficientCoinsError } from './coinService';
+import { getLevelUnlocks } from './levelService';
 import { getTemplatesForSport, adjustOdds } from '../data/predictionTemplates';
 
 const prisma = new PrismaClient();
@@ -50,7 +51,11 @@ export async function placePrediction(
   userId: string, matchId: string, questionId: string,
   optionId: string, coinsStaked: number
 ) {
-  if (coinsStaked < 10 || coinsStaked > 500) throw new Error('Stake must be between 10 and 500 coins');
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { level: true } });
+  const maxStake = getLevelUnlocks(user.level).predictionMaxStake;
+  if (coinsStaked < 10 || (maxStake !== null && coinsStaked > maxStake)) {
+    throw new Error(maxStake !== null ? `Stake must be between 10 and ${maxStake} coins` : 'Stake must be at least 10 coins');
+  }
 
   const board = await prisma.oddsBoard.findUniqueOrThrow({ where: { id: questionId } });
   if (board.status !== 'open') throw new Error('This question is no longer accepting predictions');
@@ -186,6 +191,9 @@ export async function resolvePrediction(predictionId: string, winningOptionId: s
 
   await updatePredictionStreak(pred.userId, isWin, false);
   await prisma.user.update({ where: { id: pred.userId }, data: { predictionCount: { increment: 1 } } });
+
+  const { checkAndSettleBattle } = await import('./rivalryBattleService');
+  await checkAndSettleBattle(pred.userId, pred.matchId);
 }
 
 export async function resolveParlay(parlayId: string, results: { legId: string; won: boolean }[]) {

@@ -318,10 +318,11 @@ export async function resolvePosition(availPosId: string, outcome: 'win' | 'loss
     }
   }
 
-  await prisma.availablePosition.update({
+  const resolved = await prisma.availablePosition.update({
     where: { id: availPosId },
     data: { outcome, resolvedAt: new Date(), isActive: false },
   });
+  return { position: resolved, positionsResolved: positions.length };
 }
 
 export async function purchaseInsurance(userId: string, positionId: string) {

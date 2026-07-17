@@ -71,6 +71,7 @@ export interface User {
   debateWins: number;
   debateLosses: number;
   debateWinRate: number;
+  notificationPrefs?: Record<string, boolean>;
   createdAt: string;
   updatedAt: string;
   badges?: UserBadge[];

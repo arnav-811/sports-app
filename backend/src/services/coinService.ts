@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { emitToUser } from './socketService';
 
 const prisma = new PrismaClient();
 
@@ -16,6 +17,7 @@ export class AlreadyClaimedError extends Error {
 
 async function sendNotification(userId: string, type: string, title: string, body: string, link?: string) {
   await prisma.notification.create({ data: { userId, type, title, body, link: link || '/', isRead: false } });
+  emitToUser(userId, 'notification:new', { type, title, body, link });
 }
 
 export async function addCoins(
@@ -42,6 +44,7 @@ export async function addCoins(
     if (user.svScore >= milestone && balanceBefore < milestone * 0.9) continue; // rough check
   }
 
+  emitToUser(userId, 'coin:update', { balance: balanceAfter, delta: amount });
   return tx;
 }
 
@@ -65,6 +68,7 @@ export async function spendCoins(
       data: { sportcoins: { decrement: amount }, totalCoinsSpent: { increment: amount }, weeklyNetCoins: { decrement: amount } },
     }),
   ]);
+  emitToUser(userId, 'coin:update', { balance: balanceAfter, delta: -amount });
   return tx;
 }
 
@@ -89,6 +93,7 @@ export async function loseCoins(
   ]);
 
   await sendNotification(userId, 'coin_loss', `Lost ${actual} ⚡`, description, '/fancard/' + userId);
+  emitToUser(userId, 'coin:update', { balance: balanceAfter, delta: -actual });
 
   // Weekly warning if net drops below -200
   if (user.weeklyNetCoins - actual < -200) {
@@ -204,6 +209,9 @@ export async function claimDailyLogin(userId: string) {
       },
     }),
   ]);
+
+  const { awardXP } = await import('./levelService');
+  await awardXP(userId, 10, 'daily_login');
 
   return { transaction: tx, newStreak, bonusAmount, totalAmount };
 }

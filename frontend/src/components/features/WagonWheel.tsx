@@ -1,19 +1,21 @@
+import { useMemo } from 'react';
 import { getSportColor } from '../../config/sports';
+import { seededRandom } from '../../lib/seededRandom';
 
 interface Shot { angle: number; distance: number; runs: number }
 
-function randomShots(n: number): Shot[] {
+function buildShots(seed: string, n: number): Shot[] {
+  const rand = seededRandom(seed);
   return Array.from({ length: n }, () => ({
-    angle: Math.random() * 360,
-    distance: 0.3 + Math.random() * 0.65,
-    runs: [0, 1, 2, 3, 4, 6][Math.floor(Math.random() * 6)],
+    angle: rand() * 360,
+    distance: 0.3 + rand() * 0.65,
+    runs: [0, 1, 2, 3, 4, 6][Math.floor(rand() * 6)],
   }));
 }
 
-const SHOTS = randomShots(35);
-
 export function WagonWheel({ sportId = 'cricket' }: { sportId?: string }) {
   const color = getSportColor(sportId);
+  const shots = useMemo(() => buildShots(`wagon-${sportId}`, 35), [sportId]);
   const cx = 100, cy = 100, maxR = 85;
 
   return (
@@ -24,7 +26,7 @@ export function WagonWheel({ sportId = 'cricket' }: { sportId?: string }) {
           {/* Field circles */}
           {[30, 55, 80].map((r) => <circle key={r} cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="0.5" strokeDasharray="3 2" />)}
           {/* Shots */}
-          {SHOTS.map((s, i) => {
+          {shots.map((s, i) => {
             const rad = (s.angle * Math.PI) / 180;
             const x = cx + s.distance * maxR * Math.sin(rad);
             const y = cy - s.distance * maxR * Math.cos(rad);

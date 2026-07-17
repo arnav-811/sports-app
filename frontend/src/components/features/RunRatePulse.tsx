@@ -1,14 +1,20 @@
+import { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { getSportColor } from '../../config/sports';
+import { seededRandom } from '../../lib/seededRandom';
 
-const data = Array.from({ length: 20 }, (_, i) => ({
-  over: i + 1,
-  actual: parseFloat((6 + Math.sin(i * 0.5) * 3 + Math.random() * 2).toFixed(1)),
-  required: parseFloat((9.8 - i * 0.1).toFixed(1)),
-}));
+function buildData(sportId: string) {
+  const rand = seededRandom(`runrate-${sportId}`);
+  return Array.from({ length: 20 }, (_, i) => ({
+    over: i + 1,
+    actual: parseFloat((6 + Math.sin(i * 0.5) * 3 + rand() * 2).toFixed(1)),
+    required: parseFloat((9.8 - i * 0.1).toFixed(1)),
+  }));
+}
 
 export function RunRatePulse({ sportId = 'cricket' }: { sportId?: string }) {
   const color = getSportColor(sportId);
+  const data = useMemo(() => buildData(sportId), [sportId]);
 
   return (
     <div className="card p-4">

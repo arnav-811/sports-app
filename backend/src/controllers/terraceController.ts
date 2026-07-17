@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
+import { awardXP } from '../services/levelService';
+import { updateQuestProgress } from '../services/questService';
 
 export async function createReply(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -26,6 +28,9 @@ export async function createReply(req: Request, res: Response, next: NextFunctio
       where: { id: req.params.takeId },
       data: { commentCount: { increment: 1 } },
     });
+
+    await awardXP(req.user!.userId, 2, 'terrace_reply');
+    await updateQuestProgress(req.user!.userId, 'terrace_reply');
 
     res.status(201).json(reply);
   } catch (err) { next(err); }

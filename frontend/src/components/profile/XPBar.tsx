@@ -1,8 +1,8 @@
-import { xpToLevel } from '../../lib/utils';
+import { levelProgress } from '../../lib/levels';
 import { ProgressBar } from '../ui/ProgressBar';
 
 export function XPBar({ xp, level }: { xp: number; level: number }) {
-  const { progress, needed } = xpToLevel(xp);
+  const { progress, needed } = levelProgress(xp, level);
   const pct = (progress / needed) * 100;
 
   return (

@@ -16,10 +16,13 @@ model User {
   displayName           String?
   avatarUrl             String?
   bio                   String?
+  notificationPrefs     String              @default("{}")
+  deletedAt             DateTime?
   level                 Int                 @default(1)
   cred                  Int                 @default(0)
   xp                    Int                 @default(0)
   isPremium             Boolean             @default(false)
+  isAdmin               Boolean             @default(false)
   emailVerified         Boolean             @default(false)
   favoriteSports        String              @default("[]")
   favoriteClubs         String              @default("[]")
@@ -66,6 +69,7 @@ model User {
   badges                UserBadge[]
   svScoreHistory        SVScoreHistory[]
   debateEntries         DebateEntry[]
+  debatesCreated        Debate[]            @relation("DebateCreator")
   rivalriesAsChallenger Rivalry[]           @relation("RivalryChallenger")
   rivalriesAsChallenged Rivalry[]           @relation("RivalryChallenged")
   coinTransactions      CoinTransaction[]
@@ -226,18 +230,22 @@ model Match {
 }
 
 model DraftLeague {
-  id        String        @id @default(cuid())
-  sportId   String
-  name      String
-  format    String
-  entryFee  Float         @default(0)
-  prizePool Float         @default(0)
-  maxTeams  Int           @default(100000)
-  deadline  DateTime
-  matchId   String?
-  isActive  Boolean       @default(true)
-  createdAt DateTime      @default(now())
-  rosters   DraftRoster[]
+  id         String        @id @default(cuid())
+  sportId    String
+  name       String
+  format     String
+  type       String        @default("global") // "global" | "private"
+  inviteCode String?       @unique
+  ownerId    String?
+  entryFee   Float         @default(0)
+  prizePool  Float         @default(0)
+  maxTeams   Int           @default(100000)
+  deadline   DateTime
+  matchId    String?
+  isActive   Boolean       @default(true)
+  createdAt  DateTime      @default(now())
+  rosters    DraftRoster[]
+  playerStats PlayerMatchStats[]
 }
 
 model DraftRoster {
@@ -254,6 +262,22 @@ model DraftRoster {
   league      DraftLeague @relation(fields: [leagueId], references: [id])
 
   @@unique([userId, leagueId])
+}
+
+// Admin-entered raw match performance per player, used to compute real fantasy
+// points for a DraftLeague period (one league = one scoring period: a gameweek,
+// a match, a race, a tournament, or an event depending on the sport).
+model PlayerMatchStats {
+  id        String   @id @default(cuid())
+  leagueId  String
+  playerId  String
+  sportId   String
+  statsJson String   @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  league    DraftLeague @relation(fields: [leagueId], references: [id])
+
+  @@unique([leagueId, playerId])
 }
 
 model Notification {
@@ -323,7 +347,9 @@ model Debate {
   matchId     String?
   sportId     String
   trigger     String
+  creatorId   String?
   status      String        @default("open")
+  coinPool    Int           @default(0)
   openAt      DateTime      @default(now())
   closedAt    DateTime?
   winningSide String?
@@ -331,6 +357,7 @@ model Debate {
   createdAt   DateTime      @default(now())
   entries     DebateEntry[]
   sport       Sport         @relation(fields: [sportId], references: [id])
+  creator     User?         @relation("DebateCreator", fields: [creatorId], references: [id])
 }
 
 model DebateEntry {
@@ -341,6 +368,9 @@ model DebateEntry {
   argument      String
   votes         Int      @default(0)
   isTopArgument Boolean  @default(false)
+  coinsStaked   Int      @default(25)
+  coinsWon      Int?
+  isWinner      Boolean  @default(false)
   createdAt     DateTime @default(now())
   debate        Debate   @relation(fields: [debateId], references: [id])
   user          User     @relation(fields: [userId], references: [id])
@@ -362,6 +392,17 @@ model Rivalry {
   challenged   User          @relation("RivalryChallenged", fields: [challengedId], references: [id])
 
   @@unique([challengerId, challengedId])
+}
+
+model RivalryBattle {
+  id         String   @id @default(cuid())
+  rivalryId  String
+  matchId    String
+  winnerId   String?  // null = draw
+  potAmount  Int
+  resolvedAt DateTime @default(now())
+
+  @@unique([rivalryId, matchId])
 }
 
 model RivalryStats {

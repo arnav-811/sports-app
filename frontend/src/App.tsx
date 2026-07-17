@@ -22,6 +22,7 @@ import GoneDarkAlert from './components/economy/GoneDarkAlert';
 import SessionSummary from './components/economy/SessionSummary';
 import { useAuthStore } from './store/authStore';
 import { useSocketStore } from './store/socketStore';
+import { useToast } from './hooks/useToast';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,8 +34,9 @@ const queryClient = new QueryClient({
 });
 
 function AppContent() {
-  const { accessToken, fetchMe } = useAuthStore();
-  const { connect } = useSocketStore();
+  const { accessToken, user, fetchMe } = useAuthStore();
+  const { connect, socket, subscribeUser } = useSocketStore();
+  const { success, info } = useToast();
 
   useEffect(() => {
     connect();
@@ -42,6 +44,30 @@ function AppContent() {
       fetchMe();
     }
   }, [accessToken, connect, fetchMe]);
+
+  useEffect(() => {
+    if (!socket || !user) return;
+    subscribeUser(user.id);
+
+    const onLevelUp = (data: { newLevel: number; unlocks: { tier: string }; bonus: number }) => {
+      success(`Level ${data.newLevel}! You're now a ${data.unlocks.tier}. +${data.bonus} ⚡`);
+      fetchMe();
+    };
+    const onQuestComplete = (data: { coinReward: number }) => {
+      info(`Quest complete! +${data.coinReward} ⚡`);
+      fetchMe();
+    };
+    const onCoinUpdate = () => fetchMe();
+
+    socket.on('level:up', onLevelUp);
+    socket.on('quest:complete', onQuestComplete);
+    socket.on('coin:update', onCoinUpdate);
+    return () => {
+      socket.off('level:up', onLevelUp);
+      socket.off('quest:complete', onQuestComplete);
+      socket.off('coin:update', onCoinUpdate);
+    };
+  }, [socket, user, subscribeUser, success, info, fetchMe]);
 
   return (
     <>
